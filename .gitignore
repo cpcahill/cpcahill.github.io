@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Python (build_profile.py is a dev tool, its cache is not part of the site)
+__pycache__/
+*.py[cod]
+
+# Editors
+.idea/
+.vscode/

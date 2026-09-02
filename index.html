@@ -1,0 +1,1434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colin Cahill</title>
+<meta name="description" content="Colin Cahill builds AI tools for work where being wrong is expensive. Invoice auditing agents, model evaluation, and a job-matching engine you can run in the browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap">
+<style>
+/* ==========================================================================
+   Tokens. Light is the base palette; dark redefines only the values.
+   Both the media query and the [data-theme] stamp are handled so the page
+   resolves correctly in all three viewer states (light, dark, unset).
+   ========================================================================== */
+:root {
+  --ground:      #EEF0F3;
+  --surface:     #FFFFFF;
+  --surface-2:   #F6F7F9;
+  --ink:         #0C1220;
+  --ink-2:       #4A5568;
+  --ink-3:       #7A8598;
+  --rule:        #D5DAE2;
+  --rule-soft:   #E4E8EE;
+  --accent:      #1F4FD8;
+  --accent-ink:  #16307E;
+  --accent-soft: #E6EBFC;
+  --verified:    #0F766E;
+  --flagged:     #B45309;
+  --rejected:    #A31235;
+  --grid:        rgba(12, 18, 32, 0.038);
+  --shadow:      0 1px 2px rgba(12,18,32,.05), 0 8px 24px -16px rgba(12,18,32,.18);
+
+  --f-display: 'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-body:    'Newsreader', ui-serif, Georgia, 'Times New Roman', serif;
+  --f-mono:    'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --rail: 154px;
+  --measure: 63ch;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #090C13;
+    --surface:     #10141D;
+    --surface-2:   #151A25;
+    --ink:         #E9EDF4;
+    --ink-2:       #99A3B6;
+    --ink-3:       #6C7689;
+    --rule:        #212836;
+    --rule-soft:   #1A202B;
+    --accent:      #7A9CFF;
+    --accent-ink:  #A9BEFF;
+    --accent-soft: #141C33;
+    --verified:    #2DD4A7;
+    --flagged:     #E9A23B;
+    --rejected:    #F4667F;
+    --grid:        rgba(233, 237, 244, 0.032);
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 28px -18px rgba(0,0,0,.8);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:      #090C13;
+  --surface:     #10141D;
+  --surface-2:   #151A25;
+  --ink:         #E9EDF4;
+  --ink-2:       #99A3B6;
+  --ink-3:       #6C7689;
+  --rule:        #212836;
+  --rule-soft:   #1A202B;
+  --accent:      #7A9CFF;
+  --accent-ink:  #A9BEFF;
+  --accent-soft: #141C33;
+  --verified:    #2DD4A7;
+  --flagged:     #E9A23B;
+  --rejected:    #F4667F;
+  --grid:        rgba(233, 237, 244, 0.032);
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 28px -18px rgba(0,0,0,.8);
+}
+
+/* ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background-color: var(--ground);
+  /* Engineering-paper grid. Functional reference, kept near the threshold
+     of visibility so it reads as substrate rather than decoration. */
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 26px 26px;
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  margin: 0;
+  color: var(--ink);
+}
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { color: var(--accent-ink); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+/* --- The annotation rail ---------------------------------------------------
+   Every section is a two-column grid: a narrow rail for monospace margin
+   notes, and the content column. On narrow screens the rail collapses and
+   its notes render inline above the block they annotate. */
+.row {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  gap: 34px;
+  align-items: start;
+}
+.rail {
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-3);
+  padding-top: 6px;
+  text-align: right;
+}
+.rail .tick { display: block; margin-bottom: 10px; }
+.rail .tick b {
+  display: block; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--ink-2);
+}
+
+.tag {
+  display: inline-block;
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
+  background: var(--surface);
+  white-space: nowrap;
+  vertical-align: 2px;
+}
+.tag.measured  { color: var(--verified); border-color: color-mix(in srgb, var(--verified) 35%, var(--rule)); }
+.tag.projected { color: var(--flagged);  border-color: color-mix(in srgb, var(--flagged) 35%, var(--rule)); }
+.tag.reported  { color: var(--ink-2); }
+
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 14px;
+}
+
+.lede { font-size: 20px; line-height: 1.6; color: var(--ink-2); max-width: var(--measure); }
+p { max-width: var(--measure); }
+
+/* --- Header --------------------------------------------------------------- */
+.topbar {
+  border-bottom: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--ground) 82%, transparent);
+  backdrop-filter: blur(8px);
+  position: sticky; top: 0; z-index: 40;
+}
+.topbar-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 20px; padding: 14px 32px; max-width: 1080px; margin: 0 auto;
+}
+.wordmark {
+  font-family: var(--f-display); font-weight: 700; font-size: 15px;
+  letter-spacing: -0.01em; color: var(--ink); text-decoration: none;
+}
+.wordmark span { color: var(--ink-3); font-weight: 500; }
+.topnav { display: flex; gap: 22px; align-items: center; }
+.topnav a {
+  font-family: var(--f-mono); font-size: 12px; color: var(--ink-2);
+  text-decoration: none; letter-spacing: 0.02em;
+}
+.topnav a:hover { color: var(--accent); }
+.theme-btn {
+  font-family: var(--f-mono); font-size: 11px; color: var(--ink-2);
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 5px; padding: 4px 9px; cursor: pointer; line-height: 1.5;
+}
+.theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* --- Hero ----------------------------------------------------------------- */
+.hero { padding: 76px 0 66px; }
+.hero-grid {
+  display: grid; grid-template-columns: minmax(0,1fr) 316px;
+  gap: 54px; align-items: start;
+}
+.hero h1 {
+  font-size: clamp(40px, 6.2vw, 66px);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  margin-bottom: 22px;
+}
+.hero h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+.hero .lede { font-size: 20.5px; }
+.hero-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+.btn {
+  font-family: var(--f-mono); font-size: 12.5px; font-weight: 500;
+  padding: 9px 15px; border-radius: 6px; text-decoration: none;
+  border: 1px solid var(--rule); color: var(--ink); background: var(--surface);
+  transition: border-color .15s, color .15s, transform .15s;
+  display: inline-block;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.btn.primary {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+:root[data-theme="dark"] .btn.primary { color: #070A11; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .btn.primary { color: #070A11; }
+}
+.btn.primary:hover { color: #fff; opacity: .9; }
+:root[data-theme="dark"] .btn.primary:hover { color: #070A11; }
+
+/* Hero instrument panel */
+.gauge {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 18px 18px 16px;
+  box-shadow: var(--shadow);
+}
+.gauge-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-3);
+  border-bottom: 1px solid var(--rule-soft); padding-bottom: 10px; margin-bottom: 14px;
+}
+.gauge-score {
+  display: flex; align-items: baseline; gap: 9px; margin-bottom: 16px;
+}
+.gauge-num {
+  font-family: var(--f-mono); font-weight: 600; font-size: 44px;
+  line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.gauge-of { font-family: var(--f-mono); font-size: 12px; color: var(--ink-3); }
+.gauge-band {
+  font-family: var(--f-mono); font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--verified); margin-left: auto;
+}
+.bars { display: flex; flex-direction: column; gap: 7px; }
+.bar-row {
+  display: grid; grid-template-columns: 78px 1fr 30px; gap: 9px; align-items: center;
+  font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-3);
+}
+.bar-track { display: block; height: 3px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.bar-fill {
+  display: block;                 /* inline spans ignore width */
+  height: 100%; background: var(--accent); border-radius: 2px;
+  width: 0; transition: width .9s cubic-bezier(.22,.9,.3,1);
+}
+.bar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+/* --- Sections ------------------------------------------------------------- */
+section { padding: 62px 0; border-top: 1px solid var(--rule); scroll-margin-top: 72px; }
+.sec-title { font-size: clamp(26px, 3.4vw, 34px); margin-bottom: 10px; }
+.sec-intro { color: var(--ink-2); margin-bottom: 40px; max-width: var(--measure); }
+
+/* --- Case studies --------------------------------------------------------- */
+.case { padding: 34px 0; border-top: 1px solid var(--rule-soft); }
+.case:first-of-type { border-top: none; padding-top: 6px; }
+.case-head { margin-bottom: 16px; }
+.case-org {
+  font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px;
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+}
+.case h3 { font-size: 25px; letter-spacing: -0.03em; margin-bottom: 8px; }
+.case p { margin: 0 0 15px; }
+.case p:last-child { margin-bottom: 0; }
+.case dt {
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 5px;
+}
+.case dd { margin: 0 0 18px; max-width: var(--measure); }
+.stat-strip {
+  display: flex; flex-wrap: wrap; gap: 28px;
+  padding: 16px 0; margin: 4px 0 20px;
+  border-top: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft);
+}
+.stat-num {
+  font-family: var(--f-mono); font-weight: 600; font-size: 23px;
+  color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.2;
+}
+.stat-lab {
+  font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-3);
+  letter-spacing: .04em; margin-top: 3px;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip {
+  font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-2);
+  border: 1px solid var(--rule); border-radius: 4px; padding: 2px 7px;
+  background: var(--surface-2);
+}
+
+/* --- Demo ----------------------------------------------------------------- */
+.demo {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.demo-head {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  justify-content: space-between;
+  padding: 13px 18px; border-bottom: 1px solid var(--rule);
+  background: var(--surface-2);
+  font-family: var(--f-mono); font-size: 11px; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.demo-body { display: grid; grid-template-columns: 300px minmax(0,1fr); }
+.demo-left { border-right: 1px solid var(--rule); padding: 16px; }
+.demo-right { padding: 20px; min-width: 0; }
+
+.pick-label {
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px;
+}
+.picks { display: flex; flex-direction: column; gap: 5px; margin-bottom: 18px; }
+.pick {
+  text-align: left; width: 100%; cursor: pointer;
+  background: transparent; border: 1px solid var(--rule);
+  border-radius: 7px; padding: 9px 11px;
+  font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-2);
+  line-height: 1.45; transition: border-color .14s, background .14s, color .14s;
+}
+.pick:hover { border-color: var(--accent); color: var(--ink); }
+.pick[aria-pressed="true"] {
+  border-color: var(--accent); background: var(--accent-soft); color: var(--ink);
+}
+.pick b { display: block; font-weight: 600; color: var(--ink); }
+.pick span { color: var(--ink-3); }
+
+.field { margin-bottom: 10px; }
+.field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.field label {
+  display: block; font-family: var(--f-mono); font-size: 10.5px;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+  margin-bottom: 4px;
+}
+.field input, .field textarea {
+  width: 100%; font-family: var(--f-mono); font-size: 12px;
+  color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 7px 9px;
+  line-height: 1.5; resize: vertical;
+}
+.field input:focus, .field textarea:focus { border-color: var(--accent); outline: none; }
+
+.verdict {
+  display: flex; align-items: center; gap: 16px;
+  padding-bottom: 16px; margin-bottom: 16px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.verdict-score {
+  font-family: var(--f-mono); font-weight: 600; font-size: 46px; line-height: 1;
+  font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.verdict-meta { min-width: 0; }
+.verdict-band {
+  font-family: var(--f-mono); font-size: 12px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase;
+}
+.verdict-sub { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-3); margin-top: 3px; }
+.flags { display: flex; flex-wrap: wrap; gap: 5px; margin-left: auto; justify-content: flex-end; }
+.flag {
+  font-family: var(--f-mono); font-size: 10px; letter-spacing: .04em;
+  padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--rule); color: var(--ink-2); background: var(--surface-2);
+}
+.flag.warn { color: var(--flagged); border-color: color-mix(in srgb, var(--flagged) 40%, var(--rule)); }
+.flag.good { color: var(--verified); border-color: color-mix(in srgb, var(--verified) 40%, var(--rule)); }
+
+.reject {
+  border: 1px solid color-mix(in srgb, var(--rejected) 40%, var(--rule));
+  background: color-mix(in srgb, var(--rejected) 7%, var(--surface));
+  border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;
+}
+.reject-title {
+  font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--rejected); margin-bottom: 6px; font-weight: 600;
+}
+.reject-body { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); line-height: 1.55; }
+
+.axes { display: flex; flex-direction: column; gap: 11px; }
+.axis { display: grid; grid-template-columns: 116px 84px minmax(0,1fr); gap: 12px; align-items: center; }
+.axis-name { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-2); }
+.axis-track { height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.axis-fill { height: 100%; border-radius: 2px; background: var(--accent); width: 0;
+             transition: width .55s cubic-bezier(.22,.9,.3,1); }
+.axis-detail { font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); line-height: 1.45; }
+.axis-pts { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.engine-note {
+  margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--rule-soft);
+  font-family: var(--f-mono); font-size: 11px; line-height: 1.6; color: var(--ink-3);
+  max-width: 58ch;
+}
+.adjust {
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rule-soft);
+  font-family: var(--f-mono); font-size: 11px; color: var(--flagged);
+}
+
+/* --- Stack ---------------------------------------------------------------- */
+.stack-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: 26px; }
+.stack-group h4 {
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--ink-3); font-weight: 500;
+  padding-bottom: 8px; margin-bottom: 11px; border-bottom: 1px solid var(--rule);
+}
+.stack-group ul { list-style: none; margin: 0; padding: 0; }
+.stack-group li {
+  font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2);
+  padding: 3px 0; display: flex; justify-content: space-between; gap: 12px;
+}
+.stack-group li span { color: var(--ink-3); font-size: 11px; text-align: right; }
+
+/* --- Footer --------------------------------------------------------------- */
+footer { border-top: 1px solid var(--rule); padding: 46px 0 60px; }
+.foot-grid { display: flex; flex-wrap: wrap; gap: 30px; justify-content: space-between; align-items: flex-start; }
+.foot-note { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-3); line-height: 1.7; max-width: 40ch; }
+
+/* --- Responsive ----------------------------------------------------------- */
+@media (max-width: 940px) {
+  .hero-grid { grid-template-columns: minmax(0,1fr); gap: 36px; }
+  .demo-body { grid-template-columns: minmax(0,1fr); }
+  .demo-left { border-right: none; border-bottom: 1px solid var(--rule); }
+}
+@media (max-width: 760px) {
+  body { font-size: 16px; }
+  .wrap, .topbar-inner { padding-left: 20px; padding-right: 20px; }
+  .row { grid-template-columns: minmax(0,1fr); gap: 12px; }
+  .rail { text-align: left; padding-top: 0; }
+  .rail .tick { display: inline-block; margin-right: 14px; }
+  .axis { grid-template-columns: 96px 60px minmax(0,1fr); gap: 8px; }
+  .topnav a[data-hide-sm] { display: none; }
+  .hero { padding: 46px 0 40px; }
+  section { padding: 44px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="wordmark" href="#top">Colin Cahill <span>/ applied AI</span></a>
+    <nav class="topnav">
+      <a href="#work">Work</a>
+      <a href="#engine">Live engine</a>
+      <a href="#stack" data-hide-sm>Stack</a>
+      <a href="#contact">Contact</a>
+      <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch colour theme">theme</button>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ===================== HERO ===================== -->
+<div class="wrap hero">
+  <div class="hero-grid">
+    <div>
+      <p class="eyebrow">Lenexa, Kansas &nbsp;·&nbsp; AI Fellow at Handshake AI</p>
+      <h1>I build AI that <em>shows its work.</em></h1>
+      <p class="lede">
+        My internship project audited rebate claims where a missed duplicate costs real
+        money, and I now evaluate language model output for a living, which mostly means
+        catching answers that sound right and are not. Both jobs are the same job:
+        making a system's reasoning checkable by the person responsible for it.
+      </p>
+      <div class="hero-links">
+        <a class="btn primary" href="#engine">Run my scoring engine</a>
+        <a class="btn" href="https://github.com/cpcahill" target="_blank" rel="noopener">GitHub</a>
+        <a class="btn" href="https://linkedin.com/in/cahillcolin" target="_blank" rel="noopener">LinkedIn</a>
+        <a class="btn" href="mailto:colincahill913@gmail.com">Email</a>
+      </div>
+    </div>
+
+    <aside class="gauge" aria-label="Sample output from the Pathfinder fit engine">
+      <div class="gauge-head"><span>Pathfinder fit engine</span><span>sample</span></div>
+      <div class="gauge-score">
+        <span class="gauge-num" id="heroNum">0</span>
+        <span class="gauge-of">/ 100</span>
+        <span class="gauge-band">Strong</span>
+      </div>
+      <div class="bars" id="heroBars"></div>
+    </aside>
+  </div>
+</div>
+
+<!-- ===================== WORK ===================== -->
+<section id="work">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="tick"><b>How to read this</b>Claims below carry a tag for how they are supported.</span>
+      <span class="tick"><b>measured</b>Counted or recorded.</span>
+      <span class="tick"><b>projected</b>An estimate, stated as one.</span>
+      <span class="tick"><b>self&#8209;reported</b>My account, not independently verified.</span>
+    </div>
+    <div>
+      <h2 class="sec-title">Three things I have built or broken</h2>
+      <p class="sec-intro">
+        Evaluating models taught me to distrust confident summaries, including my own. So
+        every number on this page is tagged with the kind of evidence behind it.
+      </p>
+
+      <!-- CASE 1 -->
+      <article class="case">
+        <div class="case-head">
+          <div class="case-org">
+            <span>CyberPower Systems &nbsp;·&nbsp; AI Specialist Intern</span>
+            <span>May – Aug 2025</span>
+          </div>
+          <h3>An agent that audits rebate claims before they get paid</h3>
+        </div>
+
+        <p>
+          Distributors submit rebate claims against negotiated pricing, and someone in
+          operations checks each one by hand. The failure mode is not a wrong number, it is
+          a duplicate: the same claim submitted twice, months apart, in a slightly different
+          format. Manual review had already caught over $50,000 of false reimbursements in a
+          few months <span class="tag reported">self-reported</span>, which told me the
+          checking was working and the checker was the bottleneck.
+        </p>
+
+        <div class="stat-strip">
+          <div>
+            <div class="stat-num">8</div>
+            <div class="stat-lab">claim formats identified and audited <span class="tag reported">self-reported</span></div>
+          </div>
+          <div>
+            <div class="stat-num">~4 hrs</div>
+            <div class="stat-lab">per week returned <span class="tag projected">projected</span></div>
+          </div>
+          <div>
+            <div class="stat-num">2</div>
+            <div class="stat-lab">countries' rebate rules encoded</div>
+          </div>
+        </div>
+
+        <dl>
+          <dt>What I actually did</dt>
+          <dd>
+            Pitched several automation ideas to leadership, then scoped and built the one
+            they picked. Claims arrive in eight different formats. Some are clean Excel
+            exports, some are documents scanned by hand, and each one has its own layout
+            and its own rules for what makes a claim valid. The tool works out which
+            format it is looking at, applies that format's audit logic, and checks every
+            claim against accumulated history to surface duplicates.
+          </dd>
+          <dt>The decision I would defend</dt>
+          <dd>
+            I split the problem where the two halves actually differ. Recognising which of
+            the eight formats a smudged scan belongs to, and pulling fields out of it, is
+            genuinely hard to specify and a good use of a model. Once the format is known,
+            the pricing and rebate rules are deterministic, so I wrote them as code the
+            operations team can read and correct rather than asking a model to judge. A
+            model that silently approves a claim is worse than no tool at all, because it
+            removes the person who would have caught it.
+          </dd>
+          <dt>How it ended</dt>
+          <dd>
+            I handed it to the Channel Sales Operations team and the lead technical
+            consultant, walking through how it works, how to run it, and how to change it,
+            so it would outlive the internship. I also sat in on weekly sales and operations
+            meetings as the department's first intern, which is where the actual use cases
+            came from.
+          </dd>
+        </dl>
+        <div class="chips">
+          <span class="chip">Python</span><span class="chip">OCR / scanned PDF</span><span class="chip">Format classification</span>
+          <span class="chip">Excel</span><span class="chip">Validation rules</span>
+          <span class="chip">Process mapping</span>
+        </div>
+      </article>
+
+      <!-- CASE 2 -->
+      <article class="case">
+        <div class="case-head">
+          <div class="case-org">
+            <span>Pathfinder &nbsp;·&nbsp; Personal project</span>
+            <span>2026, ongoing</span>
+          </div>
+          <h3>A job search engine that ranks deterministically and explains itself</h3>
+        </div>
+
+        <p>
+          The first version did what most of these do: fetch listings, hand them to a
+          language model, ask which ones fit. It produced fluent paragraphs and unreliable
+          answers. The same posting could be a strong match on one run and go unmentioned on
+          the next, and there was no way to audit why.
+        </p>
+        <p>
+          So I moved the decision out of the model. Listings now pass hard filters first,
+          then score across seven weighted axes. The model writes the commentary, which is
+          what it is good at, and is explicitly told not to reorder the results.
+        </p>
+
+        <div class="stat-strip">
+          <div>
+            <div class="stat-num">7</div>
+            <div class="stat-lab">weighted scoring axes</div>
+          </div>
+          <div>
+            <div class="stat-num">100%</div>
+            <div class="stat-lab">of scores decomposable</div>
+          </div>
+          <div>
+            <div class="stat-num">0</div>
+            <div class="stat-lab">ranking decisions left to the model</div>
+          </div>
+        </div>
+
+        <dl>
+          <dt>The part worth stealing</dt>
+          <dd>
+            Pay is compared after adjusting for local cost of living, so $70,000 in Kansas
+            City outranks $85,000 in San Francisco. A ranking that ignores that is just
+            sorting by a number nobody actually optimizes for.
+          </dd>
+          <dt>What I got wrong first</dt>
+          <dd>
+            I originally wrote my preferences out as a document and retrieved chunks of
+            it per query. It seemed principled and it quietly lost information: facts needed on
+            every request only appeared when the phrasing happened to retrieve them.
+            RAG is the right
+            call when there is more material than you can fit in a prompt, but my
+            preference sheet is one page, so now I just include the whole thing on
+            every request.
+          </dd>
+        </dl>
+        <div class="chips">
+          <span class="chip">LangChain</span><span class="chip">OpenAI</span>
+          <span class="chip">FAISS</span><span class="chip">Streamlit</span>
+          <span class="chip">SQLite</span><span class="chip">Adzuna API</span>
+        </div>
+        <p style="margin-top:16px">
+          <a href="#engine">Run the scoring engine below</a>, or read
+          <a href="https://github.com/cpcahill/Pathfinder" target="_blank" rel="noopener">the source on GitHub</a>.
+        </p>
+      </article>
+
+      <!-- CASE 3 -->
+      <article class="case">
+        <div class="case-head">
+          <div class="case-org">
+            <span>Handshake AI &nbsp;·&nbsp; AI Fellow, contract</span>
+            <span>Jul 2026 – present</span>
+          </div>
+          <h3>Finding the answers that read well and are wrong</h3>
+        </div>
+        <p>
+          I evaluate language model output against task requirements and write structured
+          feedback used to improve model behaviour. The interesting failures are not the
+          obvious ones. They are the responses with clean structure, a confident tone, and
+          a reasoning step that does not hold, which automated metrics score highly and a
+          skimming reader accepts.
+        </p>
+        <p>
+          It has changed how I build. I now assume a plausible-looking output is the default
+          failure mode, and design so a person can check the reasoning rather than the
+          conclusion. Both projects above are that idea applied.
+        </p>
+        <div class="chips">
+          <span class="chip">Model evaluation</span><span class="chip">Structured feedback</span>
+          <span class="chip">Failure analysis</span>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ENGINE ===================== -->
+<section id="engine">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="tick"><b>Runs locally</b>This is a JavaScript port of the Python engine. Nothing leaves your browser.</span>
+      <span class="tick"><b>One source</b>This profile is generated from the same profile.yaml the Python app reads.</span>
+    </div>
+    <div>
+      <h2 class="sec-title">Run the engine yourself</h2>
+      <p class="sec-intro">
+        Pick a sample posting or paste a real one. Hard filters run first: a posting can be
+        rejected outright and never reach scoring. Everything else is decomposed into the
+        seven axes and the points each contributed.
+      </p>
+    </div>
+  </div>
+
+  <div class="wrap" style="margin-top:26px">
+    <div class="demo">
+      <div class="demo-head">
+        <span>Pathfinder fit engine &nbsp;·&nbsp; client side</span>
+        <span id="demoStatus">ready</span>
+      </div>
+      <div class="demo-body">
+        <div class="demo-left">
+          <div class="pick-label">Sample postings</div>
+          <div class="picks" id="picks"></div>
+          <div class="pick-label">Or edit the posting</div>
+          <div class="field">
+            <label for="fTitle">Job title</label>
+            <input id="fTitle" type="text" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="fCompany">Company</label>
+            <input id="fCompany" type="text" autocomplete="off">
+          </div>
+          <div class="field-pair">
+            <div class="field">
+              <label for="fLocation">Location</label>
+              <input id="fLocation" type="text" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="fSalary">Salary</label>
+              <input id="fSalary" type="text" inputmode="numeric" autocomplete="off">
+            </div>
+          </div>
+          <div class="field">
+            <label for="fDesc">Description</label>
+            <textarea id="fDesc" rows="4"></textarea>
+          </div>
+        </div>
+
+        <div class="demo-right" id="out" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== STACK ===================== -->
+<section id="stack">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="tick"><b>Listed by use</b>Tools I have shipped something with, not tools I have read about.</span>
+    </div>
+    <div>
+      <h2 class="sec-title">What I work in</h2>
+      <p class="sec-intro">Where each of these was actually used, rather than a wall of logos.</p>
+      <div class="stack-grid">
+        <div class="stack-group">
+          <h4>AI development</h4>
+          <ul>
+            <li>Python <span>everything</span></li>
+            <li>LangChain <span>Pathfinder agent</span></li>
+            <li>OpenAI API <span>agents, embeddings</span></li>
+            <li>Claude <span>daily driver</span></li>
+            <li>RAG / FAISS <span>Pathfinder</span></li>
+            <li>Prompt engineering <span>CyberPower, Pathfinder</span></li>
+            <li>Model evaluation <span>Handshake AI</span></li>
+          </ul>
+        </div>
+        <div class="stack-group">
+          <h4>Data</h4>
+          <ul>
+            <li>SQL <span>coursework, tutoring</span></li>
+            <li>Pandas / NumPy <span>analysis</span></li>
+            <li>SQLite <span>Pathfinder tracker</span></li>
+            <li>Advanced Excel <span>Cloud3, CyberPower</span></li>
+            <li>ER modeling <span>coursework</span></li>
+            <li>Forecasting <span>coursework</span></li>
+          </ul>
+        </div>
+        <div class="stack-group">
+          <h4>Delivery and process</h4>
+          <ul>
+            <li>Streamlit <span>Pathfinder, deployed</span></li>
+            <li>Git / GitHub <span>version control</span></li>
+            <li>Copilot Studio <span>CyberPower</span></li>
+            <li>Dynamics 365 <span>CyberPower</span></li>
+            <li>Process mapping <span>CyberPower discovery</span></li>
+            <li>Six Sigma White Belt <span>certified</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CONTACT ===================== -->
+<section id="contact" style="border-bottom:none">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="tick"><b>Open to</b>Applied AI, AI evaluation, and analyst roles with a real technical component.</span>
+    </div>
+    <div>
+      <h2 class="sec-title">Get in touch</h2>
+      <p class="sec-intro">
+        I am a May 2026 Business Analytics graduate from the University of Kansas, currently
+        contracting with Handshake AI and looking for a full-time team building AI that
+        people depend on. Remote works; so does Kansas City, Chicago, or a good reason to
+        move somewhere else.
+      </p>
+      <div class="hero-links" style="margin-top:0">
+        <a class="btn primary" href="mailto:colincahill913@gmail.com">colincahill913@gmail.com</a>
+        <a class="btn" href="https://linkedin.com/in/cahillcolin" target="_blank" rel="noopener">LinkedIn</a>
+        <a class="btn" href="https://github.com/cpcahill" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap foot-grid">
+    <div class="foot-note">
+      Built as a static page: no framework, no build step, no analytics.
+      The scoring engine on this page is a JavaScript port of the Python one in
+      the Pathfinder repository and runs entirely in your browser.
+    </div>
+    <div class="foot-note" style="text-align:right">
+      Colin Cahill &nbsp;·&nbsp; Lenexa, Kansas<br>
+      Set in Archivo, Newsreader and IBM Plex Mono.
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ===========================================================================
+   Pathfinder scoring engine, JavaScript port.
+   Mirrors pathfinder_scoring.py: hard filters first, then seven weighted axes.
+   The profile below is the same shape as profile.yaml in the Python app.
+   =========================================================================== */
+
+/* --- BEGIN GENERATED: built from profile.yaml by build_profile.py ---------
+   Do not edit this object by hand. Run `python3 build_profile.py` after
+   changing profile.yaml in the Pathfinder repository, or the site and the app
+   will quietly disagree about how a job scores. -------------------------- */
+const PROFILE = {
+  weights: { role_fit: 28, skills: 24, location: 15, compensation: 12, industry: 8, signals: 8, freshness: 5 },
+
+  seniority: {
+    maxYears: 3,
+    excluded: [
+              'senior', 'sr', 'staff', 'principal', 'lead', 'manager', 'director', 'head',
+              'vp', 'vice president', 'chief', 'architect', 'supervisor', 'executive', 'iii',
+              'iv'
+    ],
+    preferred: [
+              'junior', 'jr', 'associate', 'entry', 'entry level', 'entry-level', 'new grad',
+              'graduate', 'university', 'campus', 'i', 'trainee', 'rotational'
+    ]
+  },
+
+  families: [
+    { label: 'AI / ML', weight: 1.00, titles: ['ai engineer', 'ai analyst', 'ai specialist', 'ai developer', 'machine learning', 'ml engineer', 'ml analyst', 'automation analyst', 'applied ai', 'genai', 'llm'] },
+    { label: 'Business Analyst', weight: 0.95, titles: ['business analyst', 'business systems analyst', 'ba '] },
+    { label: 'Data Analyst', weight: 0.95, titles: ['data analyst', 'analytics analyst', 'insights analyst'] },
+    { label: 'AI Solutions / Forward Deployed', weight: 0.92, titles: ['solutions engineer', 'solutions analyst', 'forward deployed', 'implementation analyst', 'technical consultant ai', 'sales engineer'] },
+    { label: 'Business Intelligence', weight: 0.90, titles: ['business intelligence', 'bi analyst', 'bi developer', 'reporting analyst'] },
+    { label: 'AI Evaluation / Trust & Safety', weight: 0.90, titles: ['evaluation', 'evaluator', 'ai quality', 'model quality', 'trust and safety', 'ai trainer', 'data annotation', 'ai research assistant', 'prompt engineer'] },
+    { label: 'Systems Analyst', weight: 0.85, titles: ['systems analyst', 'technical analyst', 'it analyst', 'application analyst'] },
+    { label: 'Data Science', weight: 0.75, titles: ['data scientist', 'decision scientist'] },
+    { label: 'Product / Ops / Strategy', weight: 0.75, titles: ['product analyst', 'operations analyst', 'strategy analyst', 'process analyst'] },
+    { label: 'Finance / Fintech', weight: 0.70, titles: ['financial analyst', 'finance analyst', 'fintech', 'credit analyst', 'investment analyst', 'fp&a'] },
+    { label: 'Consulting', weight: 0.70, titles: ['consultant', 'consulting analyst', 'business technology analyst'] },
+    { label: 'Software Development', weight: 0.60, titles: ['software developer', 'software engineer', 'developer', 'programmer'] }
+  ],
+
+  skills: [
+    { name: 'Python', tier: 'core',
+      aliases: ['python', 'pandas', 'numpy', 'scripting'] },
+    { name: 'SQL', tier: 'core',
+      aliases: ['sql', 'mysql', 'postgres', 'postgresql', 't-sql', 'pl/sql', 'sqlite', 'queries', 'relational database'] },
+    { name: 'LLM / agent development', tier: 'core',
+      aliases: ['langchain', 'openai api', 'llm', 'large language model', 'generative ai', 'gen ai', 'ai agent', 'agentic', 'prompt engineering', 'genai', 'claude', 'anthropic', 'foundation model'] },
+    { name: 'RAG / vector search', tier: 'core',
+      aliases: ['rag', 'retrieval augmented', 'retrieval-augmented', 'faiss', 'vector store', 'vector database', 'embeddings', 'pinecone', 'chroma', 'semantic search'] },
+    { name: 'Model evaluation', tier: 'core',
+      aliases: ['model evaluation', 'model eval', 'evals', 'llm evaluation', 'output quality', 'red team', 'human feedback', 'rlhf', 'annotation', 'ground truth', 'quality assurance'] },
+    { name: 'Data analysis', tier: 'core',
+      aliases: ['data analysis', 'data analytics', 'data validation', 'data auditing', 'data quality', 'analyze data', 'insights'] },
+    { name: 'Advanced Excel', tier: 'core',
+      aliases: ['excel', 'advanced excel', 'spreadsheets', 'pivot table', 'vlookup', 'power query'] },
+    { name: 'Workflow automation', tier: 'working',
+      aliases: ['automation', 'process automation', 'rpa', 'workflow automation', 'power automate', 'copilot studio', 'business process automation'] },
+    { name: 'Process mapping', tier: 'working',
+      aliases: ['process mapping', 'process documentation', 'process improvement', 'six sigma', 'business process', 'as-is', 'to-be', 'sop', 'requirements gathering', 'user stories', 'business requirements', 'brd', 'stakeholder'] },
+    { name: 'Data modeling', tier: 'working',
+      aliases: ['er modeling', 'data modeling', 'entity relationship', 'database design', 'schema', 'dimensional model'] },
+    { name: 'Forecasting / predictive analytics', tier: 'working',
+      aliases: ['forecasting', 'predictive analytics', 'data mining', 'statistical modeling', 'regression', 'machine learning', 'time series'] },
+    { name: 'Streamlit / app delivery', tier: 'working',
+      aliases: ['streamlit', 'internal tool', 'web app', 'flask', 'fastapi', 'dashboard app', 'deploy'] },
+    { name: 'Git / GitHub', tier: 'working',
+      aliases: ['git', 'github', 'version control', 'pull request', 'ci/cd'] },
+    { name: 'Dynamics 365', tier: 'exposure',
+      aliases: ['dynamics 365', 'microsoft dynamics', 'erp', 'crm', 'salesforce'] },
+    { name: 'BI tooling', tier: 'exposure',
+      aliases: ['tableau', 'power bi', 'powerbi', 'looker', 'qlik', 'data visualization', 'dashboards'] },
+    { name: 'Cloud', tier: 'exposure',
+      aliases: ['aws', 'azure', 'google cloud', 'gcp', 'snowflake', 'databricks'] }
+  ],
+
+  cities: {
+    'chicago':         { score: 1.00, col: 107 },
+    'kansas city':     { score: 1.00, col: 92 },
+    'overland park':   { score: 1.00, col: 95 },
+    'lawrence':        { score: 1.00, col: 90 },
+    'olathe':          { score: 1.00, col: 94 },
+    'austin':          { score: 0.85, col: 103 },
+    'dallas':          { score: 0.85, col: 101 },
+    'denver':          { score: 0.85, col: 110 },
+    'nashville':       { score: 0.85, col: 101 },
+    'raleigh':         { score: 0.85, col: 98 },
+    'charlotte':       { score: 0.85, col: 99 },
+    'tampa':           { score: 0.85, col: 102 },
+    'phoenix':         { score: 0.85, col: 103 },
+    'scottsdale':      { score: 0.85, col: 112 },
+    'san diego':       { score: 0.85, col: 143 },
+    'seattle':         { score: 0.85, col: 130 },
+    'houston':         { score: 0.70, col: 96 },
+    'fort worth':      { score: 0.70, col: 99 },
+    'san antonio':     { score: 0.70, col: 93 },
+    'boulder':         { score: 0.70, col: 125 },
+    'orlando':         { score: 0.70, col: 100 },
+    'miami':           { score: 0.70, col: 122 },
+    'tempe':           { score: 0.70, col: 102 },
+    'tucson':          { score: 0.70, col: 95 },
+    'los angeles':     { score: 0.70, col: 150 },
+    'san francisco':   { score: 0.70, col: 169 },
+    'minneapolis':     { score: 0.70, col: 99 },
+    'atlanta':         { score: 0.70, col: 100 },
+    'indianapolis':    { score: 0.70, col: 91 },
+    'st. louis':       { score: 0.70, col: 89 },
+    'omaha':           { score: 0.70, col: 91 },
+    'des moines':      { score: 0.70, col: 91 },
+    'salt lake city':  { score: 0.70, col: 106 },
+    'pittsburgh':      { score: 0.70, col: 94 },
+    'milwaukee':       { score: 0.70, col: 95 },
+    'columbus':        { score: 0.20, col: 92 },
+    'cleveland':       { score: 0.20, col: 90 },
+    'cincinnati':      { score: 0.20, col: 91 },
+    'new york':        { score: 0.35, col: 168 },
+    'brooklyn':        { score: 0.35, col: 160 },
+    'san jose':        { score: 0.40, col: 175 },
+    'washington':      { score: 0.50, col: 140 },
+    'boston':          { score: 0.50, col: 141 }
+  },
+  unlistedCity: 0.45,
+  remoteScore: 0.95,
+
+  comp: { floor: 60000, target: 75000, stretch: 85000, floorScore: 0.50, targetScore: 0.92, unknown: 0.55 },
+
+  industries: {
+    'fintech': ['fintech', 'financial services', 'banking', 'payments', 'insurtech', 'capital markets', 'wealth'],
+    'consulting': ['consulting', 'advisory', 'professional services'],
+    'technology': ['saas', 'software', 'technology', 'cloud', 'platform'],
+    'healthcare': ['healthcare analytics', 'health system', 'payer', 'provider', 'clinical data', 'healthcare'],
+    'supply chain': ['supply chain', 'logistics', 'operations', 'manufacturing', 'distribution']
+  },
+  industryNeutral: 0.55,
+
+  green: [
+          ['mentorship', 3], ['rotational program', 4], ['rotation', 2],
+          ['training program', 3], ['career development', 2], ['promote from within', 3],
+          ['professional development', 2], ['new grad', 4], ['recent graduate', 4],
+          ['early career', 4], ['onboarding', 1], ['cross-functional', 2],
+          ['tuition reimbursement', 2], ['401k match', 1], ['hybrid', 2], ['remote', 2]
+  ],
+  red: [
+          ['commission only', 6], ['cold calling', 4], ['door to door', 6], ['unpaid', 6],
+          ['must have own vehicle', 3],
+          ['fast-paced startup environment where you will wear many hats', 2],
+          ['data entry', 4], ['administrative support', 3], ['answering phones', 4],
+          ['night shift', 3], ['weekend', 2]
+  ],
+
+  dropTitle: [
+            'intern', 'internship', 'co-op', 'phd', 'adjunct', 'professor'
+  ],
+  dropDesc: [
+            'security clearance', 'ts/sci', 'top secret', 'active clearance', 'polygraph',
+            'must be a us citizen with', 'commission-only', 'unpaid internship'
+  ],
+  staffing: [
+            'robert half', 'kforce', 'insight global', 'teksystems', 'randstad', 'aerotek',
+            'adecco', 'apex systems', 'collabera', 'motion recruitment', 'cybercoders',
+            'jobot', 'staffing', 'recruiting', 'talent solutions', 'consulting group'
+  ]
+};
+
+/* --- END GENERATED -------------------------------------------------------- */
+
+/* ---------- helpers ---------- */
+const hasToken = (text, token) =>
+  new RegExp('\\b' + token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(text);
+
+function requiredYears(desc) {
+  const re = /(\d{1,2})\s*\+?\s*(?:-|–|to)?\s*\d{0,2}\s*\+?\s*year/gi;
+  let m, best = null;
+  while ((m = re.exec(desc)) !== null) {
+    const after = desc.slice(re.lastIndex, re.lastIndex + 60).toLowerCase();
+    if (!after.includes('experien')) continue;
+    const n = parseInt(m[1], 10);
+    if (n > 25) continue;
+    best = best === null ? n : Math.min(best, n);
+  }
+  return best;
+}
+
+const isRemote = job => {
+  const t = (job.title + ' ' + job.location + ' ' + job.description).toLowerCase();
+  if (/\b(no|not|non)[ -]remote\b/.test(t)) return false;
+  return hasToken(t, 'remote') || t.includes('work from home');
+};
+
+const lookupCity = loc => {
+  if (!loc) return null;
+  const l = loc.toLowerCase();
+  const keys = Object.keys(PROFILE.cities).sort((a, b) => b.length - a.length);
+  for (const k of keys) if (l.includes(k)) return { name: k, ...PROFILE.cities[k] };
+  return null;
+};
+
+/* ---------- hard filters ---------- */
+function screen(job) {
+  const title = job.title.toLowerCase();
+  const desc = job.description.toLowerCase();
+  for (const t of PROFILE.dropTitle)
+    if (title.includes(t)) return `Title contains "${t}". Internships and academic posts are filtered out entirely.`;
+  for (const t of PROFILE.seniority.excluded)
+    if (hasToken(title, t)) return `Seniority mismatch: the title says "${t}". Senior-signalling titles never reach scoring.`;
+  for (const p of PROFILE.dropDesc)
+    if (desc.includes(p)) return `The posting requires "${p}".`;
+  const yrs = requiredYears(job.description);
+  if (yrs !== null && yrs > PROFILE.seniority.maxYears)
+    return `Requires ${yrs}+ years of experience. The cap in the profile is ${PROFILE.seniority.maxYears}.`;
+  return null;
+}
+
+/* ---------- axes ---------- */
+function scoreRole(job) {
+  const title = job.title.toLowerCase();
+  let best = 0, label = '';
+  for (const fam of PROFILE.families)
+    for (const tok of fam.titles)
+      if (title.includes(tok) && fam.weight > best) { best = fam.weight; label = fam.label; }
+
+  if (best) {
+    for (const tok of PROFILE.seniority.preferred)
+      if (hasToken(title, tok))
+        return { raw: Math.min(1, best + 0.08), label, detail: `${label} role, explicitly early-career` };
+    return { raw: best, label, detail: `${label} role, a named target` };
+  }
+  const generics = [['analyst', 0.45], ['analytics', 0.45], ['engineer', 0.35],
+                    ['data', 0.35], ['consultant', 0.35], ['developer', 0.30]];
+  for (const [g, v] of generics)
+    if (title.includes(g)) return { raw: v, label: 'Adjacent', detail: 'Adjacent title, not a named target role' };
+  return { raw: 0.12, label: 'Off-target', detail: 'Title sits outside the target role families' };
+}
+
+function scoreSkills(job) {
+  const blob = (job.title + ' ' + job.company + ' ' + job.description).toLowerCase();
+  const val = { core: 1.0, working: 0.6, exposure: 0.3 };
+  let total = 0; const matched = [];
+  for (const s of PROFILE.skills)
+    if (s.aliases.some(a => blob.includes(a))) { matched.push(s.name); total += val[s.tier]; }
+  const raw = Math.min(1, total / 3.0);
+  return {
+    raw,
+    detail: matched.length ? 'Asks for ' + matched.slice(0, 4).join(', ')
+                           : 'Names none of the skills in the profile'
+  };
+}
+
+function scoreLocation(job) {
+  if (isRemote(job)) return { raw: PROFILE.remoteScore, detail: 'Remote friendly', col: 100 };
+  const c = lookupCity(job.location);
+  if (c) {
+    const title = c.name.replace(/\b\w/g, ch => ch.toUpperCase());
+    const phrase = c.score >= 0.95 ? 'a top-choice city'
+                 : c.score >= 0.80 ? 'a city worth relocating for'
+                 : c.score >= 0.60 ? 'an acceptable market'
+                 : 'a market rated low for the money';
+    return { raw: c.score, detail: `${title} is ${phrase}`, col: c.col };
+  }
+  return { raw: PROFILE.unlistedCity, detail: `${job.location || 'Location not stated'} is outside the listed preferences`, col: 100 };
+}
+
+function scoreComp(job, col) {
+  const { floor, target, stretch, floorScore, targetScore, unknown } = PROFILE.comp;
+  if (!job.salary) return { raw: unknown, detail: 'No salary published' };
+  const adj = job.salary / (col / 100);
+  let raw, verdict;
+  // Both the anchor salaries and what each anchor is worth come from
+  // profile.yaml. How much better a great salary is than a merely fine one
+  // is a preference, not arithmetic, so it belongs in config.
+  if (adj >= stretch) { raw = 1; verdict = 'at or above the stretch number'; }
+  else if (adj >= target) { raw = targetScore + (1 - targetScore) * (adj - target) / (stretch - target); verdict = 'above target'; }
+  else if (adj >= floor) { raw = floorScore + (targetScore - floorScore) * (adj - floor) / (target - floor); verdict = 'inside the acceptable band'; }
+  else { raw = Math.max(0, floorScore * adj / floor); verdict = 'below the floor'; }
+  const fmt = n => '$' + Math.round(n).toLocaleString();
+  let note = `${fmt(job.salary)} listed`;
+  if (Math.abs(col - 100) > 3) note += `, ${fmt(adj)} adjusted for cost of living`;
+  return { raw, detail: `${note}, ${verdict}` };
+}
+
+function scoreIndustry(job) {
+  const blob = (job.company + ' ' + job.description).toLowerCase();
+  const hits = [];
+  for (const [name, words] of Object.entries(PROFILE.industries))
+    if (words.some(w => blob.includes(w))) hits.push(name);
+  return hits.length
+    ? { raw: 1.0, detail: 'Preferred industry: ' + hits.slice(0, 2).join(', ') }
+    : { raw: PROFILE.industryNeutral, detail: 'Industry not a stated preference' };
+}
+
+function scoreSignals(job) {
+  const blob = (job.title + ' ' + job.description).toLowerCase();
+  let g = 0, r = 0; const gh = [], rh = [];
+  for (const [p, w] of PROFILE.green) if (blob.includes(p)) { g += w; gh.push(p); }
+  for (const [p, w] of PROFILE.red) if (blob.includes(p)) { r += w; rh.push(p); }
+  const raw = Math.max(0, Math.min(1, 0.5 + g / 12 - r / 8));
+  let detail;
+  if (gh.length && !rh.length) detail = 'Green flags: ' + gh.slice(0, 3).join(', ');
+  else if (rh.length && !gh.length) detail = 'Red flags: ' + rh.slice(0, 3).join(', ');
+  else if (gh.length && rh.length) detail = `Mixed: ${gh[0]}, but also ${rh[0]}`;
+  else detail = 'No strong signals either way';
+  return { raw, detail, red: rh };
+}
+
+function scoreFreshness(job) {
+  const age = job.ageDays ?? 0;
+  if (age <= 3) return { raw: 1.0, detail: `Posted ${age} day${age === 1 ? '' : 's'} ago` };
+  if (age <= 30) return { raw: 1.0 - 0.7 * (age - 3) / 27, detail: `Posted ${age} days ago` };
+  return { raw: 0.2, detail: `Posted ${age} days ago, likely stale` };
+}
+
+/* ---------- entry point ---------- */
+function scoreJob(job) {
+  const reject = screen(job);
+  if (reject) return { rejected: true, reason: reject };
+
+  const W = PROFILE.weights;
+  const role = scoreRole(job);
+  const skills = scoreSkills(job);
+  const loc = scoreLocation(job);
+  const comp = scoreComp(job, loc.col);
+  const ind = scoreIndustry(job);
+  const sig = scoreSignals(job);
+  const fresh = scoreFreshness(job);
+
+  const axes = [
+    { name: 'Role fit',     ...role,   weight: W.role_fit },
+    { name: 'Skills',       ...skills, weight: W.skills },
+    { name: 'Location',     ...loc,    weight: W.location },
+    { name: 'Compensation', ...comp,   weight: W.compensation },
+    { name: 'Industry',     ...ind,    weight: W.industry },
+    { name: 'Job quality',  ...sig,    weight: W.signals },
+    { name: 'Freshness',    ...fresh,  weight: W.freshness }
+  ].map(a => ({ ...a, points: a.raw * a.weight }));
+
+  const adjustments = [], flags = [];
+  const companyBlob = job.company.toLowerCase();
+  if (PROFILE.staffing.some(m => companyBlob.includes(m))) {
+    flags.push({ text: 'Staffing agency', kind: 'warn' });
+    adjustments.push(['Listed through a staffing agency', -4]);
+  }
+  // The Python app reads Adzuna's contract_type field directly. With no API
+  // here, this infers from the wording instead, and stays narrow on purpose:
+  // a bare /contract/ matches permanent roles that merely mention contracts.
+  const CONTRACT_RE = /\b(contract[ -]to[ -]hire|contract (?:role|position|assignment|opportunity)|w2 contract|\d+[ -]month contract|temporary (?:role|position))\b/i;
+  if (CONTRACT_RE.test(job.description)) {
+    flags.push({ text: 'Contract', kind: 'warn' });
+    adjustments.push(['Contract rather than permanent', -5]);
+  }
+  if (isRemote(job)) flags.push({ text: 'Remote', kind: 'good' });
+  if (!job.salary) flags.push({ text: 'No salary listed', kind: '' });
+  if (sig.red.length) flags.push({ text: 'Red flags', kind: 'warn' });
+
+  let total = axes.reduce((s, a) => s + a.points, 0);
+  total += adjustments.reduce((s, [, d]) => s + d, 0);
+  const score = Math.round(Math.max(0, Math.min(100, total)));
+  const band = score >= 80 ? 'Strong' : score >= 66 ? 'Good' : score >= 50 ? 'Fair' : 'Weak';
+
+  return { rejected: false, score, band, axes, adjustments, flags, family: role.label };
+}
+
+/* ===========================================================================
+   Sample postings. Written to exercise the engine's range, including one that
+   the hard filters reject before scoring ever happens.
+   =========================================================================== */
+const SAMPLES = [
+  {
+    key: 'ai',
+    menu: ['AI Analyst, Associate', 'Fidelity Investments · Remote'],
+    title: 'AI Analyst, Associate', company: 'Fidelity Investments', location: 'Remote',
+    salary: 102500, ageDays: 1,
+    description: 'Build and evaluate LangChain agents using the OpenAI API and Python. Work with financial services data, run model evaluation against ground truth, and partner cross-functionally with operations. New grad friendly, rotational program, professional development budget, hybrid or remote.'
+  },
+  {
+    key: 'ba',
+    menu: ['Business Analyst I', 'Northern Trust · Chicago, IL'],
+    title: 'Business Analyst I', company: 'Northern Trust', location: 'Chicago, IL',
+    salary: 77500, ageDays: 2,
+    description: 'Entry level role on our payments data team. Use SQL and advanced Excel to analyze transaction data, gather requirements from stakeholders, and build reporting. Mentorship and structured onboarding provided for recent graduates. Hybrid schedule, 401k match, tuition reimbursement, clear career development path.'
+  },
+  {
+    key: 'staffing',
+    menu: ['Data Analyst', 'Kforce Staffing · Kansas City, MO'],
+    title: 'Data Analyst', company: 'Kforce Technology Staffing', location: 'Kansas City, MO',
+    salary: 54000, ageDays: 9,
+    description: 'Contract role supporting a financial services client. SQL and Excel reporting, some data entry. Answering phones as needed. Fully onsite, 5 days a week.'
+  },
+  {
+    key: 'senior',
+    menu: ['Senior Data Analyst', 'Stripe · San Francisco, CA'],
+    title: 'Senior Data Analyst', company: 'Stripe', location: 'San Francisco, CA',
+    salary: 185000, ageDays: 1,
+    description: '7+ years of experience required. Deep SQL and Python expertise, payments domain knowledge preferred.'
+  },
+  {
+    key: 'admin',
+    menu: ['Operations Coordinator', 'Regional Supply Co · Topeka, KS'],
+    title: 'Operations Coordinator', company: 'Regional Supply Co', location: 'Topeka, KS',
+    salary: 38000, ageDays: 41,
+    description: 'Administrative support for our distribution branch. Answering phones, data entry, filing, and general office duties. Fully onsite.'
+  }
+];
+
+/* ===========================================================================
+   Rendering
+   =========================================================================== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function readForm() {
+  const raw = $('fSalary').value.replace(/[^0-9]/g, '');
+  return {
+    title: $('fTitle').value,
+    company: $('fCompany').value,
+    location: $('fLocation').value,
+    description: $('fDesc').value,
+    salary: raw ? parseInt(raw, 10) : null,
+    ageDays: window.__ageDays ?? 2
+  };
+}
+
+function render() {
+  const job = readForm();
+  const out = $('out');
+
+  if (!job.title.trim()) {
+    out.innerHTML = '<div class="verdict-sub">Enter a job title to score a posting.</div>';
+    $('demoStatus').textContent = 'waiting';
+    return;
+  }
+
+  const r = scoreJob(job);
+
+  if (r.rejected) {
+    $('demoStatus').textContent = 'screened out';
+    out.innerHTML =
+      '<div class="reject">' +
+        '<div class="reject-title">Rejected before scoring</div>' +
+        '<div class="reject-body">' + esc(r.reason) + '</div>' +
+      '</div>' +
+      '<div class="axis-detail">Hard filters run before any scoring. A posting that fails one ' +
+      'never appears in results at all, and the reason is recorded so an over-aggressive ' +
+      'filter stays visible rather than silently shrinking the candidate pool.</div>';
+    return;
+  }
+
+  $('demoStatus').textContent = 'scored';
+  const flags = r.flags.map(f =>
+    `<span class="flag ${f.kind}">${esc(f.text)}</span>`).join('');
+
+  const axes = r.axes.map(a => `
+    <div class="axis">
+      <div class="axis-name">${esc(a.name)}</div>
+      <div><div class="axis-track"><div class="axis-fill" data-w="${(a.raw * 100).toFixed(0)}"></div></div></div>
+      <div class="axis-detail"><span class="axis-pts">${a.points.toFixed(0)}/${a.weight}</span> ${esc(a.detail)}</div>
+    </div>`).join('');
+
+  const adj = r.adjustments.length
+    ? '<div class="adjust">' + r.adjustments.map(([l, d]) =>
+        `${d > 0 ? '+' : ''}${d} &nbsp;${esc(l)}`).join('<br>') + '</div>'
+    : '';
+
+  const bandColor = { Strong: 'var(--verified)', Good: 'var(--accent)',
+                      Fair: 'var(--flagged)', Weak: 'var(--rejected)' }[r.band];
+
+  out.innerHTML = `
+    <div class="verdict">
+      <div class="verdict-score" style="color:${bandColor}">${r.score}</div>
+      <div class="verdict-meta">
+        <div class="verdict-band" style="color:${bandColor}">${r.band} fit</div>
+        <div class="verdict-sub">${esc(r.family)} &nbsp;·&nbsp; out of 100</div>
+      </div>
+      <div class="flags">${flags}</div>
+    </div>
+    <div class="axes">${axes}</div>
+    ${adj}
+    <div class="engine-note">
+      Seven axes, weights summing to 100, then point adjustments for things that
+      are not axes but still matter. Every number above is reproducible: the same
+      posting always produces the same score, which is the whole reason the model
+      does not do the ranking.
+    </div>`;
+
+  requestAnimationFrame(() => {
+    out.querySelectorAll('.axis-fill').forEach(el => {
+      el.style.background = bandColor;
+      el.style.width = el.dataset.w + '%';
+    });
+  });
+}
+
+function loadSample(s) {
+  $('fTitle').value = s.title;
+  $('fCompany').value = s.company;
+  $('fLocation').value = s.location;
+  $('fSalary').value = s.salary ?? '';
+  $('fDesc').value = s.description;
+  window.__ageDays = s.ageDays;
+  document.querySelectorAll('.pick').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.key === s.key)));
+  render();
+}
+
+/* build the sample menu */
+$('picks').innerHTML = SAMPLES.map(s =>
+  `<button class="pick" type="button" data-key="${s.key}" aria-pressed="false">
+     <b>${esc(s.menu[0])}</b><span>${esc(s.menu[1])}</span>
+   </button>`).join('');
+
+document.querySelectorAll('.pick').forEach(btn => {
+  btn.addEventListener('click', () => {
+    loadSample(SAMPLES.find(s => s.key === btn.dataset.key));
+  });
+});
+
+['fTitle', 'fCompany', 'fLocation', 'fSalary', 'fDesc'].forEach(id => {
+  $(id).addEventListener('input', () => {
+    document.querySelectorAll('.pick').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    render();
+  });
+});
+
+loadSample(SAMPLES[0]);
+
+/* ---------- hero gauge ---------- */
+(function heroGauge() {
+  const sample = SAMPLES[1];                     // the Northern Trust posting
+  const r = scoreJob(sample);
+  $('heroBars').innerHTML = r.axes.map(a => `
+    <div class="bar-row">
+      <span>${esc(a.name)}</span>
+      <span class="bar-track"><span class="bar-fill" data-w="${(a.raw * 100).toFixed(0)}"></span></span>
+      <span class="bar-val">${a.points.toFixed(0)}</span>
+    </div>`).join('');
+
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const numEl = $('heroNum');
+
+  const fills = () => document.querySelectorAll('#heroBars .bar-fill')
+    .forEach(el => { el.style.width = el.dataset.w + '%'; });
+
+  if (reduce) { numEl.textContent = r.score; fills(); return; }
+
+  setTimeout(fills, 260);
+  const start = performance.now(), dur = 1000;
+  (function tick(now) {
+    const t = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - t, 3);
+    numEl.textContent = Math.round(r.score * eased);
+    if (t < 1) requestAnimationFrame(tick);
+  })(performance.now());
+})();
+
+/* ---------- theme toggle ---------- */
+(function theme() {
+  const btn = $('themeBtn');
+  const root = document.documentElement;
+  let stored = null;
+  try { stored = localStorage.getItem('cc-theme'); } catch (e) { /* private mode */ }
+  if (stored) root.setAttribute('data-theme', stored);
+
+  const label = () => {
+    const cur = root.getAttribute('data-theme');
+    btn.textContent = cur ? cur : 'auto';
+  };
+  label();
+
+  btn.addEventListener('click', () => {
+    const cur = root.getAttribute('data-theme');
+    const next = cur === 'dark' ? 'light' : cur === 'light' ? null : 'dark';
+    if (next) root.setAttribute('data-theme', next);
+    else root.removeAttribute('data-theme');
+    try {
+      if (next) localStorage.setItem('cc-theme', next);
+      else localStorage.removeItem('cc-theme');
+    } catch (e) { /* ignore */ }
+    label();
+  });
+})();
+</script>
+</body>
+</html>
