@@ -43,11 +43,6 @@ changing anything.
 Do not edit the block between `BEGIN GENERATED` and `END GENERATED` in
 `index.html` by hand. That script overwrites it.
 
-## Deploying
-
-The site is hosted on GitHub Pages and updates automatically on every push to
-`main`.
-
 ## Built with
 
 Plain HTML, CSS, and JavaScript. Fonts are Archivo, Newsreader, and IBM Plex
